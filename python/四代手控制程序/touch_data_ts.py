@@ -3,16 +3,16 @@ from pymodbus.client import ModbusTcpClient
 from pymodbus.pdu import ExceptionResponse
 import struct
 
-# 定义 Modbus TCP 相关参数
+# Modbus TCP connection settings
 MODBUS_IP = "192.168.11.210"
 MODBUS_PORT = 6000
 
-# 定义各手指数据起始地址范围
-TOUCH_SENSOR_BASE_ADDR_PINKY = 3000   # 小拇指
-TOUCH_SENSOR_BASE_ADDR_RING = 3058     # 无名指
-TOUCH_SENSOR_BASE_ADDR_MIDDLE = 3116   # 中指
-TOUCH_SENSOR_BASE_ADDR_INDEX = 3174    # 食指
-TOUCH_SENSOR_BASE_ADDR_THUMB = 3232    # 大拇指
+# Base register address for each finger sensor block
+TOUCH_SENSOR_BASE_ADDR_PINKY = 3000   # Pinky
+TOUCH_SENSOR_BASE_ADDR_RING = 3058     # Ring finger
+TOUCH_SENSOR_BASE_ADDR_MIDDLE = 3116   # Middle finger
+TOUCH_SENSOR_BASE_ADDR_INDEX = 3174    # Index finger
+TOUCH_SENSOR_BASE_ADDR_THUMB = 3232    # Thumb
 
 def read_register_range(client, start_addr, count):
     register_values = []
@@ -28,15 +28,15 @@ def read_register_range(client, start_addr, count):
 
 def read_float_from_bytes(registers, index):
     """
-    从寄存器中读取浮点数，给定起始索引。
+    Read a floating-point value from two consecutive registers.
     """
-    # 获取4个字节
-    byte0 = registers[index] & 0xFF       # 低8位
-    byte1 = (registers[index] >> 8) & 0xFF # 高8位
-    byte2 = registers[index + 1] & 0xFF   # 低8位
-    byte3 = (registers[index + 1] >> 8) & 0xFF # 高8位
+    # Extract the four raw bytes
+    byte0 = registers[index] & 0xFF       # Low byte
+    byte1 = (registers[index] >> 8) & 0xFF # High byte
+    byte2 = registers[index + 1] & 0xFF   # Low byte
+    byte3 = (registers[index + 1] >> 8) & 0xFF # High byte
 
-    # 数据转换
+    # Rebuild the float bit pattern
     combined = (byte3 << 24) | (byte2 << 16) | (byte1 << 8) | byte0
 
     result = struct.unpack('!f', struct.pack('!I', combined))[0]
@@ -45,18 +45,18 @@ def read_float_from_bytes(registers, index):
 
 def read_finger_data(client, base_addr):
     """
-    读取手指的法向力和切向力数据。
-    法向力位于 base_addr + 32，切向力位于 base_addr + 40。
+    Read normal and tangential force data for one finger.
+    Normal force starts at base_addr + 32 and tangential force at base_addr + 40.
     """
-    # 读寄存器数据
+    # Read the raw registers
     register_values = read_register_range(client, base_addr, 25)  
 
     if register_values is None:
         return None
     
-    # 读取法向力和切向力
-    normal_force = read_float_from_bytes(register_values, 16)  # 法向力
-    tangential_force = read_float_from_bytes(register_values, 20)  # 切向力
+    # Decode normal force and tangential force
+    normal_force = read_float_from_bytes(register_values, 16)  # Normal force
+    tangential_force = read_float_from_bytes(register_values, 20)  # Tangential force
 
     return normal_force, tangential_force
 
@@ -68,7 +68,7 @@ def read_multiple_registers():
         while True:
             start_time = time.time()
 
-            # 读取各手指数据
+            # Read all finger force blocks
             pinky_force = read_finger_data(client, TOUCH_SENSOR_BASE_ADDR_PINKY)
             ring_force = read_finger_data(client, TOUCH_SENSOR_BASE_ADDR_RING)
             middle_force = read_finger_data(client, TOUCH_SENSOR_BASE_ADDR_MIDDLE)
@@ -78,7 +78,7 @@ def read_multiple_registers():
             end_time = time.time()
             frequency = 1 / (end_time - start_time)
 
-            # 输出数据
+            # Print the current values
             print(f"小拇指法向力：{pinky_force[0]}, 切向力：{pinky_force[1]}")
             print(f"无名指法向力：{ring_force[0]}, 切向力：{ring_force[1]}")
             print(f"中指法向力：{middle_force[0]}, 切向力：{middle_force[1]}")

@@ -46,10 +46,10 @@ extern "C" {
 
 struct Figure
 {
-	  int16_t       m_current_angle;                   //手指当前角度                 
-	  int16_t       m_current_current;                 //手指当前电流值
-	  int16_t       m_current_forceact;                //手指实际受力值
-	  int8_t        m_error_code;                      //手指故障码
+	  int16_t       m_current_angle;                   // Current finger angle
+	  int16_t       m_current_current;                 // Current finger motor current
+	  int16_t       m_current_forceact;                // Actual finger force
+	  int8_t        m_error_code;                      // Finger error code
 };
 
 typedef struct 

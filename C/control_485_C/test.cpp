@@ -1,6 +1,6 @@
 #include <iostream>
 #include <pthread.h>
-#include <chrono> // 包含 std::chrono
+#include <chrono> // Provides std::chrono
 #include "hand_api.h"
 
 int main()
@@ -28,7 +28,7 @@ int main()
         {
             Action(0);
 
-            //     // fgets(m_send_array, sizeof(m_send_array), stdin); //stdin 意思是键盘输入
+            //     // fgets(m_send_array, sizeof(m_send_array), stdin); // stdin means keyboard input
             //     // write(fd_right,tUartData.m_send_array,sizeof(*tUartData.m_send_array));
             //     // read(fd_right,tUartData.m_rec_array,sizeof(*tUartData.m_rec_array));*/
             // }
@@ -36,6 +36,6 @@ int main()
     }
     close(fd_right);
     // fclose(fp);
-    // fp = NULL; //需要指向空，否则会指向原打开文件地址
+    // fp = NULL; // Reset the pointer so it no longer points to the old file
     return 0;
 }

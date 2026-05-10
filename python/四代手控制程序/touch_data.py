@@ -2,39 +2,39 @@ import time
 from pymodbus.client import ModbusTcpClient
 from pymodbus.pdu import ExceptionResponse
 
-# 定义 Modbus TCP 相关参数
+# Modbus TCP connection settings
 MODBUS_IP = "192.168.11.210"
 MODBUS_PORT = 6000
 
-# 定义各部分数据地址范围
-TOUCH_SENSOR_BASE_ADDR_PINKY = 3000  # 小拇指
+# Register ranges for each touch sensor area
+TOUCH_SENSOR_BASE_ADDR_PINKY = 3000  # Pinky
 TOUCH_SENSOR_END_ADDR_PINKY = 3369
 
-TOUCH_SENSOR_BASE_ADDR_RING = 3370  # 无名指
+TOUCH_SENSOR_BASE_ADDR_RING = 3370  # Ring finger
 TOUCH_SENSOR_END_ADDR_RING = 3739
 
-TOUCH_SENSOR_BASE_ADDR_MIDDLE = 3740  # 中指
+TOUCH_SENSOR_BASE_ADDR_MIDDLE = 3740  # Middle finger
 TOUCH_SENSOR_END_ADDR_MIDDLE = 4109
 
-TOUCH_SENSOR_BASE_ADDR_INDEX = 4110  # 食指
+TOUCH_SENSOR_BASE_ADDR_INDEX = 4110  # Index finger
 TOUCH_SENSOR_END_ADDR_INDEX = 4479
 
-TOUCH_SENSOR_BASE_ADDR_THUMB = 4480  # 大拇指
+TOUCH_SENSOR_BASE_ADDR_THUMB = 4480  # Thumb
 TOUCH_SENSOR_END_ADDR_THUMB = 4899
 
-TOUCH_SENSOR_BASE_ADDR_PALM = 4900  # 掌心
+TOUCH_SENSOR_BASE_ADDR_PALM = 4900  # Palm
 TOUCH_SENSOR_END_ADDR_PALM = 5123
 
-# Modbus 每次最多读取寄存器的数量
+# Maximum number of registers to read per Modbus request
 MAX_REGISTERS_PER_READ = 125
 
 
 def read_register_range(client, start_addr, end_addr):
     """
-    批量读取指定地址范围内的寄存器数据。
+    Read a continuous register range in batches.
     """
     register_values = []
-    # 分段读取寄存器
+    # Read the range in chunks
     for addr in range(start_addr, end_addr + 1, MAX_REGISTERS_PER_READ * 2):
         current_count = min(MAX_REGISTERS_PER_READ, (end_addr - addr) // 2 + 1)
         response = client.read_holding_registers(address=addr, count=current_count)
@@ -49,54 +49,54 @@ def read_register_range(client, start_addr, end_addr):
 
 def format_finger_data(finger_name, data):
     """
-    格式化四指触觉数据。
+    Format tactile data for a finger into structured matrices.
     """
     result = {}
 
     if finger_name != "大拇指":
-        # 四指格式
+        # Layout used by the four non-thumb fingers
         if len(data) < 185:
             print(f"{finger_name} 数据长度不足，至少185个数据，实际：{len(data)}")
             return None
 
         idx = 0
-        # 指端数据 3x3
+        # Fingertip end data, 3x3
         result['tip_end'] = [data[idx + i*3: idx + (i+1)*3] for i in range(3)]
         idx += 9
 
-        # 指尖触觉数据 12x8
+        # Fingertip tactile data, 12x8
         result['tip_touch'] = [data[idx + i*8: idx + (i+1)*8] for i in range(12)]
         idx += 96
 
-        # 指腹触觉数据 10x8
+        # Finger pad tactile data
         result['finger_pad'] = [data[idx + i*8: idx + (i+1)*8] for i in range(12)]
         idx += 80
     else:
-        # 大拇指格式
+        # Layout used by the thumb
         if len(data) < 210:
             print(f"{finger_name} 数据长度不足，至少210个数据，实际：{len(data)}")
             return None
 
         idx = 0
-        # 指端数据 3x3
+        # Fingertip end data, 3x3
         result['tip_end'] = [data[idx + i*3: idx + (i+1)*3] for i in range(3)]
         idx += 9
 
-        # 指尖触觉数据 12x8
+        # Fingertip tactile data, 12x8
         result['tip_touch'] = [data[idx + i*8: idx + (i+1)*8] for i in range(12)]
         idx += 96
 
-        # 指中触觉数据 3x3
+        # Mid-finger tactile data, 3x3
         result['middle_touch'] = [data[idx + i*3: idx + (i+1)*3] for i in range(3)]
         idx += 9
 
-        # 指腹触觉数据 12x8
+        # Finger pad tactile data, 12x8
         finger_pad = [data[idx + i*8: idx + (i+1)*8] for i in range(12)]
         idx += 96
 
-        # 指腹触觉数据行元素反转
+        # Reverse elements within each finger-pad row
         finger_pad = [row[::-1] for row in finger_pad]
-        # 指腹触觉数据行顺序反转
+        # Reverse the order of the finger-pad rows
         finger_pad.reverse()
 
         result['finger_pad'] = finger_pad
@@ -105,17 +105,17 @@ def format_finger_data(finger_name, data):
 
 def format_palm_data(data):
     """
-    格式化掌心数据为14x8矩阵，然后转置为8x14矩阵。
+    Format palm data as a 14x8 matrix and transpose it to 8x14.
     """
     expected_len = 14 * 8
     if len(data) < expected_len:
         print(f"掌心数据长度不足，至少{expected_len}个数据，实际：{len(data)}")
         return None
 
-    # 生成原始矩阵（14行8列）
+    # Build the original 14x8 matrix
     palm_matrix = [data[i*8:(i+1)*8] for i in range(14)]
 
-    # 转置矩阵
+    # Transpose the matrix
     transposed = list(map(list, zip(*palm_matrix)))
 
     return transposed
@@ -164,7 +164,7 @@ def read_multiple_registers():
         while True:
             start_time = time.time()
 
-            # 读取各部分数据
+            # Read each touch-sensor region
             pinky_register_values = read_register_range(
                 client,
                 TOUCH_SENSOR_BASE_ADDR_PINKY,
@@ -199,7 +199,7 @@ def read_multiple_registers():
             end_time = time.time()
             frequency = 1 / (end_time - start_time) if end_time > start_time else float('inf')
 
-            # 格式化数据
+            # Format the raw register values
             pinky_formatted = format_finger_data("小拇指", pinky_register_values)
             ring_formatted = format_finger_data("无名指", ring_register_values)
             middle_formatted = format_finger_data("中指", middle_register_values)
@@ -207,7 +207,7 @@ def read_multiple_registers():
             thumb_formatted = format_finger_data("大拇指", thumb_register_values)
             palm_formatted = format_palm_data(palm_register_values)
 
-            # 打印格式化数据
+            # Print the formatted data
             print_formatted_finger_data("小拇指", pinky_formatted)
             print_formatted_finger_data("无名指", ring_formatted)
             print_formatted_finger_data("中指", middle_formatted)

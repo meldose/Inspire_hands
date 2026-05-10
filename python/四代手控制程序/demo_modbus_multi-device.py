@@ -3,7 +3,7 @@ import time
 import threading
 import random
 
-# 寄存器字典
+# Register map
 regdict = {
     'ID': 1000,
     'baudrate': 1001,
@@ -31,7 +31,7 @@ def open_modbus(ip, port, timeout=10):
             return client
         else:
             print(f"连接失败：{ip}:{port}，正在重试...")
-            time.sleep(1)  # 每次重试等待1秒
+            time.sleep(1)  # Wait 1 second before retrying
             
     print(f"连接失败，超时：{ip}:{port}")
     return None
@@ -47,7 +47,7 @@ def write6(client, reg_name, val):
     if reg_name in ['angleSet', 'forceSet', 'speedSet']:
         val_reg = []
         for i in range(6):
-            val_reg.append(val[i] & 0xFFFF)  # 取低16位
+            val_reg.append(val[i] & 0xFFFF)  # Keep the low 16 bits
         write_register(client, regdict[reg_name], val_reg)
     else:
         print('函数调用错误')
@@ -83,7 +83,7 @@ def control_device(ip):
     if client is None:
         return
 
-    # 执行一系列操作
+    # Run the command sequence for one device
     print(f'{ip} - 设置灵巧手运动速度参数！')
     write6(client, 'speedSet', [1000, 1000, 1000, 1000, 1000, 1000])
     time.sleep(2)
@@ -125,11 +125,11 @@ def control_device(ip):
     print(f'{ip} - 连接已关闭')
 
 if __name__ == '__main__':
-    ip_addresses = ['192.168.11.210', '192.168.11.220']  # 添加多个设备的IP地址
+    ip_addresses = ['192.168.11.210', '192.168.11.220']  # Add the IP addresses of all devices
     threads = []
     clients = []
 
-    # 尝试连接所有设备
+    # Try to connect to all devices
     for ip in ip_addresses:
         client = open_modbus(ip, 6000, timeout=10)
         if client:
@@ -137,15 +137,15 @@ if __name__ == '__main__':
         else:
             print(f"无法连接到设备：{ip}")
 
-    # 只有在所有设备都成功连接后才执行控制程序
+    # Run the control sequence only if every device connects successfully
     if len(clients) == len(ip_addresses):
         print("所有设备都已成功连接，开始控制设备...")
         for ip, client in zip(ip_addresses, clients):
             thread = threading.Thread(target=control_device, args=(ip,))
             threads.append(thread)
-            thread.start()  # 启动线程
+            thread.start()  # Start the worker thread
 
-        # 等待所有线程完成
+        # Wait for all worker threads to finish
         for thread in threads:
             thread.join()
 

@@ -4,12 +4,12 @@
 #include <vector>
 #include <boost/asio.hpp>
 #include <iomanip>
-#include <thread> // 添加线程库用于延时操作
+#include <thread> // Thread utilities used for delays
 
 using namespace std;
 using namespace boost::asio;
 
-// 寄存器字典
+// Register map
 const struct {
     const char* name;
     int address;
@@ -25,9 +25,9 @@ class SerialPort {
 public:
     SerialPort(const string& port, unsigned int baudrate) : io(), serial(io, port) {
         serial.set_option(serial_port_base::baud_rate(baudrate));
-        serial.set_option(serial_port_base::character_size(8)); // 数据位
-        serial.set_option(serial_port_base::parity(serial_port_base::parity::none)); // 无校验位
-        serial.set_option(serial_port_base::stop_bits(serial_port_base::stop_bits::one)); // 1个停止位
+        serial.set_option(serial_port_base::character_size(8)); // Data bits
+        serial.set_option(serial_port_base::parity(serial_port_base::parity::none)); // No parity
+        serial.set_option(serial_port_base::stop_bits(serial_port_base::stop_bits::one)); // One stop bit
         cout << "串口 " << port << " 已打开" << endl;
     }
 
@@ -46,60 +46,60 @@ private:
     serial_port serial;
 };
 
-// 根据寄存器名称获取地址
+// Resolve a register address by name
 int getAddressByName(const string& reg_name) {
     for (const auto& reg : regdict) {
         if (reg.name == reg_name) {
-            return reg.address;  // 返回匹配的地址
+            return reg.address;  // Return the matching address
         }
     }
-    return -1;  // 未找到寄存器名称，返回 -1
+    return -1;  // Return -1 if the name is not found
 }
 
-// 写寄存器函数
+// Write-register helper
 void write_register(SerialPort& serial, int address_decimal, const string& id_value, const vector<int>& values_to_write) {
     if (values_to_write.size() > 6) {
         cerr << "超过允许的值数量，最多只能写入6个值！" << endl;
         return;
     }
 
-    // 构建并发送数据
+    // Build and send the frame
     vector<unsigned char> send_buffer;
     send_buffer.push_back(0xEB); 
     send_buffer.push_back(0x90);
-    send_buffer.push_back(static_cast<unsigned char>(stoi(id_value)));  // 将 ID 转换为 unsigned char
+    send_buffer.push_back(static_cast<unsigned char>(stoi(id_value)));  // Convert the ID to unsigned char
     size_t num_values = values_to_write.size();
     unsigned char data_length = static_cast<unsigned char>(num_values * 2 + 3); 
     send_buffer.push_back(data_length);  
-    send_buffer.push_back(0x12);  // 写寄存器命令
-    send_buffer.push_back(static_cast<unsigned char>(address_decimal & 0xFF));  // 地址低八位
-    send_buffer.push_back(static_cast<unsigned char>((address_decimal >> 8) & 0xFF));  // 地址高八位
+    send_buffer.push_back(0x12);  // Write-register command
+    send_buffer.push_back(static_cast<unsigned char>(address_decimal & 0xFF));  // Address low byte
+    send_buffer.push_back(static_cast<unsigned char>((address_decimal >> 8) & 0xFF));  // Address high byte
 
-    // 将要写入的值添加到数据包中
+    // Append the values to be written
     for (int value : values_to_write) {
-        send_buffer.push_back(static_cast<unsigned char>(value & 0xFF));  // 写入值低八位
-        send_buffer.push_back(static_cast<unsigned char>((value >> 8) & 0xFF));  // 写入值高八位
+        send_buffer.push_back(static_cast<unsigned char>(value & 0xFF));  // Value low byte
+        send_buffer.push_back(static_cast<unsigned char>((value >> 8) & 0xFF));  // Value high byte
     }
 
-    // 计算校验和，从 ID 部分开始
+    // Compute the checksum starting from the ID field
     unsigned char checksum = 0;
     for (size_t k = 2; k < send_buffer.size(); ++k) {
         checksum += send_buffer[k];
     }
 
-    send_buffer.push_back(checksum & 0xFF);  // 添加校验和
+    send_buffer.push_back(checksum & 0xFF);  // Append checksum
 
-    // 输出发送的数据
+    // Print the outgoing frame
     cout << "发送的写入数据: ";
     for (auto byte : send_buffer) {
         cout << hex << setw(2) << setfill('0') << (int)byte << " ";
     }
     cout << endl;
 
-    // 写入数据
+    // Send the frame
     serial.write(send_buffer);
 
-    // 读取并丢弃写入后的响应
+    // Read and discard the write response
     try {
         vector<unsigned char> discard_buffer = serial.read(9); 
         cout << "写操作后的响应数据已丢弃，字节数: " << discard_buffer.size() << endl;
@@ -108,22 +108,22 @@ void write_register(SerialPort& serial, int address_decimal, const string& id_va
     }
 }
 
-// 读寄存器函数
+// Read-register helper
 void read_register(SerialPort& serial, int address_decimal, const string& id_value, size_t length_to_read) {
     vector<int> parsed_values;
 
-    // 构建并发送请求数据
+    // Build and send the request frame
     vector<unsigned char> send_buffer;
     send_buffer.push_back(0xEB); 
     send_buffer.push_back(0x90);
-    send_buffer.push_back(static_cast<unsigned char>(stoi(id_value)));  // 将 ID 转换为 unsigned char
+    send_buffer.push_back(static_cast<unsigned char>(stoi(id_value)));  // Convert the ID to unsigned char
     send_buffer.push_back(0x04);
     send_buffer.push_back(0x11);
-    send_buffer.push_back(static_cast<unsigned char>(address_decimal & 0xFF));  // 地址低八位
-    send_buffer.push_back(static_cast<unsigned char>((address_decimal >> 8) & 0xFF));  // 地址高八位
-    send_buffer.push_back(0x0C); // 读取寄存器长度
+    send_buffer.push_back(static_cast<unsigned char>(address_decimal & 0xFF));  // Address low byte
+    send_buffer.push_back(static_cast<unsigned char>((address_decimal >> 8) & 0xFF));  // Address high byte
+    send_buffer.push_back(0x0C); // Register read length
 
-    // 计算校验和
+    // Compute checksum
     unsigned char checksum = 0;
     for (size_t k = 2; k < send_buffer.size(); ++k) {
         checksum += send_buffer[k];
@@ -137,19 +137,19 @@ void read_register(SerialPort& serial, int address_decimal, const string& id_val
     }
     cout << endl;
 
-    serial.write(send_buffer);  // 写入串口
+    serial.write(send_buffer);  // Send the frame through the serial port
 
-    // 读取响应数据
+    // Read the response frame
     vector<unsigned char> received_data = serial.read(length_to_read);
 
-    // 打印接收到的原始响应数据
+    // Print the raw response frame
     cout << "接收到的原始响应数据: ";
     for (auto byte : received_data) {
         cout << hex << setw(2) << setfill('0') << (int)byte << " ";
     }
     cout << endl;
 
-    // 解析响应
+    // Decode the response payload
     for (size_t j = 7; j < 19; j += 2) {
         if (j + 1 < received_data.size()) {
             int value = (received_data[j + 1] << 8) | received_data[j];
@@ -160,7 +160,7 @@ void read_register(SerialPort& serial, int address_decimal, const string& id_val
         }
     }
 
-    // 输出参数
+    // Print parsed values
     cout << "参数: ";
     for (int value : parsed_values) {
         cout << dec << value << " ";
@@ -168,14 +168,14 @@ void read_register(SerialPort& serial, int address_decimal, const string& id_val
     cout << endl;
 }
 
-// 主函数
+// Demo entry point
 int main() {
-    string port = "/dev/ttyUSB0";  // 根据实际情况修改串口名
-    SerialPort serial(port, 115200);  // 打开串口
+    string port = "/dev/ttyUSB0";  // Change this to the actual serial port name
+    SerialPort serial(port, 115200);  // Open the serial port
 
     string id_value = "01";
 
-    // 写入寄存器示例
+    // Example write operations
     write_register(serial, getAddressByName("speedSet"), id_value, {1000, 1000, 1000, 1000, 1000, 1000});
     this_thread::sleep_for(std::chrono::seconds(1));
 
@@ -188,7 +188,7 @@ int main() {
     write_register(serial, getAddressByName("angleSet"), id_value, {1000, 1000, 1000, 1000, 1000, 1000});
     this_thread::sleep_for(std::chrono::seconds(1));
 
-    // 读取寄存器示例
+    // Example read operations
     read_register(serial, getAddressByName("angleSet"), id_value, 20);
     this_thread::sleep_for(std::chrono::seconds(1));
     read_register(serial, getAddressByName("angleAct"), id_value, 20);
@@ -198,4 +198,3 @@ int main() {
 
     return 0;
 }
-

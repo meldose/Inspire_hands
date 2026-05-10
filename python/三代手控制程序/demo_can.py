@@ -1,7 +1,7 @@
 import serial
 import time
 
-# 寄存器字典
+# Register map
 regdict = {
     'ID': 1000,
     'baudrate': 1001,
@@ -20,7 +20,7 @@ regdict = {
 }
 
 def init_serial(port='/dev/ttyUSB0', baudrate=115200):
-    """初始化串口连接"""
+    """Initialize the serial connection."""
     try:
         ser = serial.Serial(port, baudrate, timeout=1)
         print(f"串口 {port} 已打开")
@@ -30,26 +30,26 @@ def init_serial(port='/dev/ttyUSB0', baudrate=115200):
         return None
 
 def convert_address_to_binary_write(address_dec, id_value):
-    """将十进制地址转换为二进制字符串，用于写操作，前缀第六位为1。"""
+    """Convert a decimal address to the binary format used by write frames."""
     address_bin = bin(address_dec)[2:]  
     id_bin = bin(int(id_value, 2))[2:].zfill(14) 
-    formatted_output = f"0000010{address_bin}{id_bin}"  # 第六位为1
+    formatted_output = f"0000010{address_bin}{id_bin}"  # The sixth prefix bit marks a write request
     return formatted_output
 
 def convert_address_to_binary_read(address_dec, id_value):
-    """将十进制地址转换为二进制字符串，用于读操作，前缀第六位为0。"""
+    """Convert a decimal address to the binary format used by read frames."""
     address_bin = bin(address_dec)[2:]  
     id_bin = bin(int(id_value, 2))[2:].zfill(14) 
-    formatted_output = f"0000000{address_bin}{id_bin}"  # 第六位为0
+    formatted_output = f"0000000{address_bin}{id_bin}"  # The sixth prefix bit marks a read request
     return formatted_output
 
 def binary_to_hex(binary_string):
-    """将二进制字符串转换为十六进制"""
+    """Convert a binary string to hexadecimal."""
     decimal_value = int(binary_string, 2)
     return hex(decimal_value)[2:].upper()
 
 def convert_number_to_bytes(number):
-    """将一个整数转换为字节数组"""
+    """Convert an integer into a byte array."""
     hex_string = hex(number)[2:].upper()  
     if len(hex_string) % 2 != 0:
         hex_string = '0' + hex_string  
@@ -57,7 +57,7 @@ def convert_number_to_bytes(number):
     return byte_array
 
 def send_command(ser, reg_name, values, id_value):
-    """发送控制命令"""
+    """Send a control command."""
     if reg_name in ['angleSet', 'forceSet', 'speedSet']:
         val_reg = [val & 0xFFFF for val in values]  
         write_register(ser, regdict[reg_name], val_reg, id_value)
@@ -65,12 +65,12 @@ def send_command(ser, reg_name, values, id_value):
         print('函数调用错误，正确方式：str的值为\'angleSet\'/\'forceSet\'/\'speedSet\'，val为长度为6的list，值为0~1000，允许使用-1作为占位符')
 
 def write_register(ser, address, values, id_value):
-    """写入寄存器并发送数据"""
+    """Build and send a write-register frame."""
     while True:
-        chunk = values[:4]  # 取前4个数据
+        chunk = values[:4]  # Use the first four values in the first frame
         values = values[4:]
 
-        # 使用写操作的地址转换函数
+        # Encode the address using the write-frame format
         ext_id_bin = convert_address_to_binary_write(address, id_value)
         ext_id_hex = binary_to_hex(ext_id_bin)
         print(f"计算的扩展标识符: {ext_id_hex}")
@@ -86,34 +86,34 @@ def write_register(ser, address, values, id_value):
         send_buffer += bytes([0xAA, 0xAA])
         send_buffer.extend(ext_id_bytes)
 
-        # 添加注册值
+        # Append register values
         for value in chunk:
             send_buffer.append(value & 0xFF)
             send_buffer.append(value >> 8)
 
-        # 计算当前数据长度并添加额外的填充
+        # Add padding if the payload is shorter than eight bytes
         data_length = len(chunk) * 2
         if data_length < 8:
             padding_length = 8 - data_length
             send_buffer.extend([0xFF] * padding_length)
 
-        # 添加数据长度和额外的固定字节
-        send_buffer.append(len(chunk) * 2 + (padding_length if data_length < 8 else 0))  # 数据长度
+        # Append the payload length and fixed trailer bytes
+        send_buffer.append(len(chunk) * 2 + (padding_length if data_length < 8 else 0))  # Payload length
         send_buffer.append(0x00)
         send_buffer.append(0x01)
         send_buffer.append(0x00)
 
-        # 计算校验和
+        # Compute checksum
         check_sum = sum(send_buffer[2:]) & 0xFF
         send_buffer.append(check_sum)
         send_buffer += bytes([0x55, 0x55])
 
         ser.write(send_buffer)
         print("发送指令:", send_buffer.hex())
-        ser.reset_input_buffer()  # 清除输入缓冲区
-        break  # 仅执行一次
+        ser.reset_input_buffer()  # Clear the input buffer
+        break  # Only send the first chunk once here
 
-    # 发送后半段
+    # Send the remaining values in the second frame
     new_address = address + 8
     print(f"新地址 (后半段): {new_address}")
 
@@ -128,29 +128,29 @@ def write_register(ser, address, values, id_value):
     for byte in ext_id_bytes:
         print(f"字节: {byte:02X}")
 
-    # 继续构建发送缓冲区，使用后半段的扩展标识符字节
+    # Build the second frame with the shifted address bytes
     send_buffer = bytearray()
     send_buffer += bytes([0xAA, 0xAA])
     send_buffer.extend(ext_id_bytes)
 
-    # 发送剩余数据
+    # Append the remaining values
     for value in values:
         send_buffer.append(value & 0xFF)
         send_buffer.append(value >> 8)
 
-    # 计算当前数据长度并添加额外的填充
+    # Add padding if the payload is shorter than eight bytes
     data_length = len(values) * 2
     if data_length < 8:
         padding_length = 8 - data_length
         send_buffer.extend([0xFF] * padding_length)
 
-    # 添加数据长度和额外的固定字节
-    send_buffer.append(0x04)  # 数据长度
+    # Append the payload length and fixed trailer bytes
+    send_buffer.append(0x04)  # Payload length
     send_buffer.append(0x00)
     send_buffer.append(0x01)
     send_buffer.append(0x00)
 
-    # 计算校验和
+    # Compute checksum
     check_sum = sum(send_buffer[2:]) & 0xFF
     send_buffer.append(check_sum)
     send_buffer += bytes([0x55, 0x55])
@@ -159,7 +159,7 @@ def write_register(ser, address, values, id_value):
     print("发送指令 (后半段):", send_buffer.hex())
 
 def read_register(ser, address, id_value):
-    """读取寄存器并发送数据"""
+    """Build and send a read-register frame."""
     ext_id_bin = convert_address_to_binary_read(address, id_value)
     ext_id_hex = binary_to_hex(ext_id_bin)
     ext_id_number = int(ext_id_hex, 16)
@@ -169,65 +169,65 @@ def read_register(ser, address, id_value):
     send_buffer += bytes([0xAA, 0xAA])
     send_buffer.extend(ext_id_bytes)
 
-    # 读取命令
-    send_buffer.append(0x08)  # 固定字节
-    send_buffer.append(0x00)  # 固定字节
-    send_buffer.append(0x00)  # 固定字节
-    send_buffer.append(0x00)  # 固定字节
-    send_buffer.append(0x00)  # 固定字节
-    send_buffer.append(0x00)  # 固定字节
-    send_buffer.append(0x00)  # 固定字节
-    send_buffer.append(0x00)  # 固定字节
-    send_buffer.append(0x01)  # 固定字节
-    send_buffer.append(0x00)  # 固定字节
-    send_buffer.append(0x01)  # 固定字节    
-    send_buffer.append(0x00)  # 固定字节
-    # 计算校验和
+    # Append the fixed read command payload
+    send_buffer.append(0x08)  # Fixed byte
+    send_buffer.append(0x00)  # Fixed byte
+    send_buffer.append(0x00)  # Fixed byte
+    send_buffer.append(0x00)  # Fixed byte
+    send_buffer.append(0x00)  # Fixed byte
+    send_buffer.append(0x00)  # Fixed byte
+    send_buffer.append(0x00)  # Fixed byte
+    send_buffer.append(0x00)  # Fixed byte
+    send_buffer.append(0x01)  # Fixed byte
+    send_buffer.append(0x00)  # Fixed byte
+    send_buffer.append(0x01)  # Fixed byte
+    send_buffer.append(0x00)  # Fixed byte
+    # Compute checksum
     check_sum = sum(send_buffer[2:]) & 0xFF
     send_buffer.append(check_sum)
     send_buffer += bytes([0x55, 0x55])
 
     ser.write(send_buffer)
     print("发送读取指令:", send_buffer.hex())
-    ser.reset_input_buffer()  # 清除输入缓冲区
+    ser.reset_input_buffer()  # Clear the input buffer
     
-    # 等待设备响应
-    time.sleep(0.1)  # 等待设备响应
-    response1 = ser.read(23)  # 根据协议读取响应字节数
-    print("读取的原始内容:", response1.hex())  # 打印原始内容的十六进制形式
+    # Wait for the device response
+    time.sleep(0.1)  # Give the device time to respond
+    response1 = ser.read(23)  # Read the expected response length
+    print("读取的原始内容:", response1.hex())  # Print the raw response in hex
 
-    # 根据 reg_name 处理响应数据
+    # Parse the response based on the register being read
     if address == regdict['temp']:
-        # 处理 response1 数据
+        # Parse the first response frame
         if len(response1) >= 1:
-            # 提取第 7 位到第 12 位的数据（从第 7 到第 12）
-            frame1_data = response1[6:12]  # 从第 7 位到第 12 位
+            # Extract bytes 7 through 12 from the first frame
+            frame1_data = response1[6:12]  # Bytes 7 through 12
 
-            # 处理第一帧数据
+            # Decode the first frame payload
             values1 = []
             for i in range(0, len(frame1_data), 1):
                 value = frame1_data[i]
                 if value > 60000:
                     value = 0
                 values1.append(value)
-            print("读取数据（温度）:", tuple(values1))  # 打印温度数据
+            print("读取数据（温度）:", tuple(values1))  # Print temperature data
     else:
-        # 处理 response1 数据
+        # Parse the first response frame
         if len(response1) >= 1:
-            # 提取第一帧的第 7 位到第 14 位的数据
-            frame1_data = response1[6:14]  # 从第 7 位到第 14 位
+            # Extract bytes 7 through 14 from the first frame
+            frame1_data = response1[6:14]  # Bytes 7 through 14
 
-            # 处理第一帧数据
+            # Decode the first frame payload
             values1 = []
             for i in range(0, len(frame1_data), 2):
-                low_byte = frame1_data[i]      # 低八位
-                high_byte = frame1_data[i + 1] # 高八位
-                value = (high_byte << 8) | low_byte  # 组合成十进制
+                low_byte = frame1_data[i]      # Low byte
+                high_byte = frame1_data[i + 1] # High byte
+                value = (high_byte << 8) | low_byte  # Combine into a decimal value
                 if value > 60000:
                     value = 0                
                 values1.append(value)
 
-        # 发送后半段
+        # Send the second read frame
         new_address = address + 8
         ext_id_bin = convert_address_to_binary_read(new_address, id_value)
         ext_id_hex = binary_to_hex(ext_id_bin)
@@ -235,59 +235,59 @@ def read_register(ser, address, id_value):
         ext_id_number = int(ext_id_hex, 16)
         ext_id_bytes = convert_number_to_bytes(ext_id_number)
 
-        # 继续构建发送缓冲区，使用后半段的扩展标识符字节
+        # Build the second frame with the shifted address bytes
         send_buffer = bytearray()
         send_buffer += bytes([0xAA, 0xAA])
         send_buffer.extend(ext_id_bytes)
 
-        # 读取命令
-        send_buffer.append(0x04)  # 固定字节
-        send_buffer.append(0x00)  # 固定字节
-        send_buffer.append(0x00)  # 固定字节
-        send_buffer.append(0x00)  # 固定字节
-        send_buffer.append(0x00)  # 固定字节
-        send_buffer.append(0x00)  # 固定字节
-        send_buffer.append(0x00)  # 固定字节
-        send_buffer.append(0x00)  # 固定字节
-        send_buffer.append(0x01)  # 固定字节
-        send_buffer.append(0x00)  # 固定字节
-        send_buffer.append(0x01)  # 固定字节    
-        send_buffer.append(0x00)  # 固定字节
-        # 计算校验和
+        # Append the fixed second-frame read payload
+        send_buffer.append(0x04)  # Fixed byte
+        send_buffer.append(0x00)  # Fixed byte
+        send_buffer.append(0x00)  # Fixed byte
+        send_buffer.append(0x00)  # Fixed byte
+        send_buffer.append(0x00)  # Fixed byte
+        send_buffer.append(0x00)  # Fixed byte
+        send_buffer.append(0x00)  # Fixed byte
+        send_buffer.append(0x00)  # Fixed byte
+        send_buffer.append(0x01)  # Fixed byte
+        send_buffer.append(0x00)  # Fixed byte
+        send_buffer.append(0x01)  # Fixed byte
+        send_buffer.append(0x00)  # Fixed byte
+        # Compute checksum
         check_sum = sum(send_buffer[2:]) & 0xFF
         send_buffer.append(check_sum)
         send_buffer += bytes([0x55, 0x55])
 
         ser.write(send_buffer)
         print("发送读取指令:", send_buffer.hex())
-        ser.reset_input_buffer()  # 清除输入缓冲区
+        ser.reset_input_buffer()  # Clear the input buffer
         
-        # 等待设备响应
-        time.sleep(0.1)  # 等待设备响应
-        response2 = ser.read(23)  # 根据协议读取响应字节数
-        print("读取的原始内容:", response2.hex())  # 打印原始内容的十六进制形式
+        # Wait for the device response
+        time.sleep(0.1)  # Give the device time to respond
+        response2 = ser.read(23)  # Read the expected response length
+        print("读取的原始内容:", response2.hex())  # Print the raw response in hex
 
-        # 处理 response2 数据
+        # Parse the second response frame
         if len(response2) >= 1:
-            # 提取第二帧的第 7 位到第 10 位的数据
-            frame2_data = response2[6:10]  # 从第 7 位到第 10 位
+            # Extract bytes 7 through 10 from the second frame
+            frame2_data = response2[6:10]  # Bytes 7 through 10
 
-            # 处理第二帧数据
+            # Decode the second frame payload
             values2 = []
             for i in range(0, len(frame2_data), 2):
-                low_byte = frame2_data[i]      # 低八位
-                high_byte = frame2_data[i + 1] # 高八位
-                value = (high_byte << 8) | low_byte  # 组合成十进制
+                low_byte = frame2_data[i]      # Low byte
+                high_byte = frame2_data[i + 1] # High byte
+                value = (high_byte << 8) | low_byte  # Combine into a decimal value
                 if value > 60000:
                     value = 0
                 values2.append(value)
 
-        # 组合最终输出
-        combined_values = values1[:4] + values2[:2]  # 前四个第一帧的值 + 后两个第二帧的值
+        # Merge the final six values
+        combined_values = values1[:4] + values2[:2]  # First four values from frame one plus last two from frame two
         print("读取数据:", tuple(combined_values))
 
 def write6(ser, reg_name, val, id_value):
-    """写入6个参数的函数"""
+    """Write six values through the CAN-style protocol."""
     send_command(ser, reg_name, val, id_value)
 
 if __name__ == "__main__":
@@ -297,17 +297,17 @@ if __name__ == "__main__":
         exit(1)
 
     print('设置灵巧手运动角度参数0，-1为不设置该运动角度！')  
-    # 写入
+    # Write demo values
     write6(ser, 'speedSet', [1000, 1000, 1000, 1000, 1000, 1000], '01')
     time.sleep(1)
-    write6(ser, 'angleSet', [0, 0, 0, 0, 800, 0], '01')  # ID 设置为 '01'
+    write6(ser, 'angleSet', [0, 0, 0, 0, 800, 0], '01')  # Device ID is '01'
     time.sleep(3)
     write6(ser, 'speedSet', [200, 200, 200, 200, 200, 200], '01')
     time.sleep(1)
     write6(ser, 'angleSet', [1000, 1000, 1000, 1000, 1000, 1000], '01') 
     time.sleep(3)
 
-    # 读取
+    # Read back several registers
     read_register(ser, regdict['angleSet'], '01')
     read_register(ser, regdict['angleAct'], '01')
     read_register(ser, regdict['speedSet'], '01')
@@ -315,4 +315,3 @@ if __name__ == "__main__":
     read_register(ser, regdict['forceAct'], '01')    
     read_register(ser, regdict['temp'], '01')
     ser.close()
-

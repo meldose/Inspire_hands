@@ -101,10 +101,10 @@ void *ThreadEntry_left(void *arg)
 			nByte = 0;
 		}
 if ((j == 1) && (sum == tUartData.m_rec_array[i - 1])) {
-            // 打印原始响应数据
+            // Print the raw response frame
             printf("原始响应数据: ");
             for (int k = 0; k < i; k++) {
-                printf("%02x ", tUartData.m_rec_array[k]); // 打印为十六进制格式
+                printf("%02x ", tUartData.m_rec_array[k]); // Print as hexadecimal
             }
             printf("\n");
 
@@ -264,8 +264,8 @@ int Read_Hand_Data(uint8_t ID, uint16_t adress, uint16_t len)
 	tUartData.m_send_array[2] = ID;
 	tUartData.m_send_array[3] = 0x04;
 	tUartData.m_send_array[4] = 0x11;
-	tUartData.m_send_array[5] = adress & 0xFF;      // 低八位
-	tUartData.m_send_array[6] = (adress >> 8) & 0xFF; // 高八位
+	tUartData.m_send_array[5] = adress & 0xFF;      // Low byte
+	tUartData.m_send_array[6] = (adress >> 8) & 0xFF; // High byte
         tUartData.m_send_array[7] = len;
 	for (i = 2; i < 8; i++)
 	{
@@ -274,11 +274,11 @@ int Read_Hand_Data(uint8_t ID, uint16_t adress, uint16_t len)
 	tUartData.m_send_array[8] = m_unChecksum & 0xFF;
 	tUartData.m_tx_len = 9;
 	
-            // 打印原始帧
+            // Print the raw transmit frame
     printf("构建的输入串口原始帧: ");
     for (i = 0; i < tUartData.m_tx_len; i++)
     {
-        printf("%02x ", tUartData.m_send_array[i]); // 打印为十六进制格式
+        printf("%02x ", tUartData.m_send_array[i]); // Print as hexadecimal
     }
     printf("\n");
 	

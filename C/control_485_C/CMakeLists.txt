@@ -1,21 +1,21 @@
 cmake_minimum_required(VERSION 3.10)  
 
-# 设置项目名称和版本  
+# Set the project name and version
 project(HandAPI VERSION 1.0 LANGUAGES C CXX)  
 
-# 查找 pthread 库  
+# Find the pthread library
 find_package(Threads REQUIRED)  
 
-# 添加 C 的可执行文件 hand_api  
+# Build the C static library
  add_library(hand_api STATIC hand_api.c)  
 
-# 添加 C++ 的可执行文件 test  
+# Build the C++ test executable
 add_executable(test test.cpp hand_api.c)  
 
-# 链接 pthread 库和 hand_api 库到 test  
+# Link pthread and hand_api into the test executable
  target_link_libraries(test PRIVATE hand_api Threads::Threads)  
 
-# # 设置 C 和 C++ 标准  
+# # Set the C and C++ language standards
 # set_target_properties(hand_api PROPERTIES  
 #     C_STANDARD 11  
 #     C_STANDARD_REQUIRED True  
@@ -26,5 +26,5 @@ add_executable(test test.cpp hand_api.c)
 #     CXX_STANDARD_REQUIRED True  
 # )  
 
-# 提示用户/开发者修改串口和手 ID  
+# Remind the user to update the serial port and hand ID
 message(STATUS "请在 hand_api.c 中修改 ttyUSB0 为实际串口USB名，以及对于手的ID。")
