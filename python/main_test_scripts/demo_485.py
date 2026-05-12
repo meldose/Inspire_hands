@@ -43,7 +43,7 @@ def writeRegister(ser, id, add, num, val):
     checksum &= 0xFF                # Keep only the low byte
     bytes.append(checksum)          # Append checksum
     
-    print("发送到串口的指令:", [hex(b) for b in bytes])
+    print("Command sent to serial port:", [hex(b) for b in bytes])
     
     ser.write(bytes)                # Write the frame to the serial port
     time.sleep(0.01)                # Delay 10 ms
@@ -64,7 +64,7 @@ def readRegister(ser, id, add, num, mute=False):
     checksum &= 0xFF                # Keep only the low byte
     bytes.append(checksum)          # Append checksum
     
-    print("发送到串口的指令:", [hex(b) for b in bytes])
+    print("Command sent to serial port:", [hex(b) for b in bytes])
     
     ser.write(bytes)                # Write the frame to the serial port
     time.sleep(0.01)                # Delay 10 ms
@@ -77,7 +77,7 @@ def readRegister(ser, id, add, num, mute=False):
     for i in range(num):
         val.append(recv[7 + i])
     if not mute:
-        print('读到的寄存器值依次为：', end='')
+        print('Read register values:', end='')
         for i in range(num):
             print(val[i], end=' ')
         print()
@@ -92,64 +92,64 @@ def write6(ser, id, str, val):
             val_reg.append((val[i] >> 8) & 0xFF)
         writeRegister(ser, id, regdict[str], 12, val_reg)
     else:
-        print('函数调用错误，正确方式：str的值为\'angleSet\'/\'forceSet\'/\'speedSet\'，val为长度为6的list，值为0~1000，允许使用-1作为占位符')
+        print("Function call error. Expected: str = 'angleSet'/'forceSet'/'speedSet', val = list of length 6, values in 0-1000, and -1 may be used as a placeholder")
 
 # Read six actuator values for command or feedback registers.
 def read6(ser, id, str):
     if str == 'angleSet' or str == 'forceSet' or str == 'speedSet' or str == 'angleAct' or str == 'forceAct':
         val = readRegister(ser, id, regdict[str], 12, True) # Read 12 bytes
         if len(val) < 12:         # Ignore incomplete responses
-            print('没有读到数据')
+            print('No data was read')
             return
         val_act = []
         for i in range(6):
             val_act.append((val[2*i] & 0xFF) + (val[1 + 2*i] << 8)) #
-        print('读到的值依次为：', end='')
+        print('Read values:', end='')
         for i in range(6):
             print(val_act[i], end=' ')
         print()
     elif str == 'errCode' or str == 'statusCode' or str == 'temp':
         val_act = readRegister(ser, id, regdict[str], 6, True)
         if len(val_act) < 6:      # Ignore incomplete responses
-            print('没有读到数据')
+            print('No data was read')
             return
-        print('读到的值依次为：', end='')
+        print('Read values:', end='')
         for i in range(6):
             print(val_act[i], end=' ')
         print()
     else:
-        print('函数调用错误，正确方式：str的值为\'angleSet\'/\'forceSet\'/\'speedSet\'/\'angleAct\'/\'forceAct\'/\'errCode\'/\'statusCode\'/\'temp\'')
+        print("Function call error. Expected: str = 'angleSet'/'forceSet'/'speedSet'/'angleAct'/'forceAct'/'errCode'/'statusCode'/'temp'")
 
 # Open the port and run a simple speed, force, and angle demo.
 if __name__ == '__main__':
-    print('打开串口！') # Startup message for opening the serial port
+    print('Opening serial port') # Startup message for opening the serial port
     ser = openSerial('/dev/ttyUSB0', 115200) # Change to the correct port and baud rate
-    print('设置灵巧手运动速度参数，-1为不设置该运动速度！')
+    print('Setting dexterous hand motion speed parameters, -1 means keep that speed unchanged')
     write6(ser, 1, 'speedSet', [1000, 1000, 1000, 1000, 1000, 1000]) # Update the device ID as needed; valid values are 0-1000 and -1 means no change
     time.sleep(1)                   # Delay 1 s
-    print('设置灵巧手抓握力度参数！')
+    print('Setting dexterous hand grip force parameters')
     write6(ser, 1, 'forceSet', [500, 500, 500, 500, 500, 500])# Update the device ID as needed; valid values are 0-1000 and -1 means no change
     time.sleep(1)                   # Delay 1 s
-    print('设置灵巧手运动角度参数0，-1为不设置该运动角度！')
+    print('Setting dexterous hand motion angle parameters to 0, -1 means keep that angle unchanged')
     write6(ser, 1, 'angleSet', [0, 0, 0, 0, 0, 0])# Update the device ID as needed; valid values are 0-1000 and -1 means no change
     time.sleep(1)                   # Delay 1 s
-    print('设置灵巧手运动角度参数1000，-1为不设置该运动角度！')
+    print('Setting dexterous hand motion angle parameters to 1000, -1 means keep that angle unchanged')
     write6(ser, 1, 'angleSet', [1000, 1000, 1000, 1000, 1000, 1000])
     
     time.sleep(1) 
     # Read temperature
-    print('读取温度...')
+    print('Reading temperature...')
     read6(ser, 1, 'temp')
         
     # Read actual angle values
-    print('读取实际角度值...')
+    print('Reading actual angle values...')
     read6(ser, 1, 'angleAct')  
     
-    print('设置灵巧手动作库序列：3！')
+    print('Setting dexterous hand action library sequence: 3')
     writeRegister(ser, 1, regdict['actionSeq'], 1, [3])
     time.sleep(1)                   # Delay 1 s
-    print('运行灵巧手当前序列动作！')
+    print('Running the current dexterous hand sequence action')
     writeRegister(ser, 1, regdict['actionRun'], 1, [1])  
 
-    print("关闭串口")
+    print("Closing serial port")
     ser.close()

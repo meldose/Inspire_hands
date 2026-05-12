@@ -1,5 +1,5 @@
 from pymodbus.client import ModbusTcpClient
-
+import time
 # Register map
 regdict = {
     'ID': 1000,
@@ -40,7 +40,7 @@ def write6(client, reg_name, val):
             val_reg.append(val[i] & 0xFFFF)  # Keep the low 16 bits
         write_register(client, regdict[reg_name], val_reg)
     else:
-        print('函数调用错误，正确方式：str的值为\'angleSet\'/\'forceSet\'/\'speedSet\'，val为长度为6的list，值为0~1000，允许使用-1作为占位符')
+        print("Function call error. Expected: str = 'angleSet'/'forceSet'/'speedSet', val = list of length 6, values in 0-1000, and -1 may be used as a placeholder")
 
 def read6(client, reg_name):
     # Validate the register name before reading
@@ -48,9 +48,9 @@ def read6(client, reg_name):
         # Read six registers directly for the selected group
         val = read_register(client, regdict[reg_name], 6)
         if len(val) < 6:
-            print('没有读到数据')
+            print('No data was read')
             return
-        print('读到的值依次为：', end='')
+        print('Read values:', end='')
         for v in val:
             print(v, end=' ')
         print()
@@ -59,7 +59,7 @@ def read6(client, reg_name):
         # Read error codes, status codes, or temperatures as three registers
         val_act = read_register(client, regdict[reg_name], 3)
         if len(val_act) < 3:
-            print('没有读到数据')
+            print('No data was read')
             return
             
         # Collect split low and high bytes
@@ -73,54 +73,54 @@ def read6(client, reg_name):
             results.append(low_byte)  # Store low byte
             results.append(high_byte)  # Store high byte
 
-        print('读到的值依次为：', end='')
+        print('Read values:', end='')
         for v in results:
             print(v, end=' ')
         print()
     
     else:
-        print('函数调用错误，正确方式：str的值为\'angleSet\'/\'forceSet\'/\'speedSet\'/\'angleAct\'/\'forceAct\'/\'errCode\'/\'statusCode\'/\'temp\'')
+        print("Function call error. Expected: str = 'angleSet'/'forceSet'/'speedSet'/'angleAct'/'forceAct'/'errCode'/'statusCode'/'temp'")
 
 if __name__ == '__main__':
     ip_address = '192.168.11.210'
     port = 6000
-    print('打开Modbus TCP连接！')
+    print('Opening Modbus TCP connection')
     client = open_modbus(ip_address, port)
     
-    print('设置灵巧手运动速度参数，-1为不设置该运动速度！')
+    print('Setting dexterous hand motion speed parameters, -1 means keep that speed unchanged')
     write6(client, 'speedSet', [1000, 1000, 1000, 1000, 1000, 1000])
     time.sleep(2)
     
-    print('设置灵巧手抓握力度参数！')
+    print('Setting dexterous hand grip force parameters')
     write6(client, 'forceSet', [500, 500, 500, 500, 500, 500])
     time.sleep(1)
     
-    print('设置灵巧手运动角度参数0，-1为不设置该运动角度！')
+    print('Setting dexterous hand motion angle parameters to 0, -1 means keep that angle unchanged')
     write6(client, 'angleSet', [0, 0, 0, 0, 400, -1])
     time.sleep(3)
     
     read6(client, 'angleAct')
     time.sleep(1)
     
-    print('设置灵巧手运动角度参数1000，-1为不设置该运动角度！')
+    print('Setting dexterous hand motion angle parameters to 1000, -1 means keep that angle unchanged')
     write6(client, 'angleSet', [1000, 1000, 1000, 1000, 1000, -1])
     time.sleep(5)
     
     read6(client, 'angleAct')
     time.sleep(1)
     
-    print('故障信息：')
+    print('Error information:')
     read6(client, 'errCode')
     time.sleep(1)
-    print('电缸温度：')
+    print('Actuator temperature:')
     read6(client, 'temp')
     time.sleep(1)
     
-    print('设置灵巧手动作库序列：2！')
+    print('Setting dexterous hand action library sequence: 2')
     write_register(client, regdict['actionSeq'], [2])
     time.sleep(1)
     
-    print('运行灵巧手当前序列动作！')
+    print('Running the current dexterous hand sequence action')
     write_register(client, regdict['actionRun'], [1])
     
     # Close the Modbus TCP connection

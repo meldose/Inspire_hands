@@ -38,13 +38,13 @@ void *Action(int numOfAction)
 
 		write(fd_left, tUartData.m_send_array, tUartData.m_tx_len);
 		write(fd_right, tUartData.m_send_array, tUartData.m_tx_len);
-		printf("发送的指令帧: ");
+			printf("Sent command frame: ");
 		usleep(500000);
 
                Read_Hand_Data(0x01,1546,0x0c); 
 		write(fd_left, tUartData.m_send_array, tUartData.m_tx_len);
 		write(fd_right, tUartData.m_send_array, tUartData.m_tx_len);
-		printf("发送的指令帧: ");
+			printf("Sent command frame: ");
 		for (int i = 0; i < tUartData.m_tx_len; i++)
 		{
 			printf("%02x ", tUartData.m_send_array[i]);
@@ -55,7 +55,7 @@ void *Action(int numOfAction)
 		Write_Hand_Angle_Position(0x01, 200, 200, 200, 200, 400, 600);
 		write(fd_left, tUartData.m_send_array, tUartData.m_tx_len);
 		write(fd_right, tUartData.m_send_array, tUartData.m_tx_len);
-		printf("发送的指令帧: ");
+			printf("Sent command frame: ");
 		for (int i = 0; i < tUartData.m_tx_len; i++)
 		{
 			printf("%02x ", tUartData.m_send_array[i]);
@@ -66,7 +66,7 @@ void *Action(int numOfAction)
                Read_Hand_Data(0x01,1546,0x0c); 
 		write(fd_left, tUartData.m_send_array, tUartData.m_tx_len);
 		write(fd_right, tUartData.m_send_array, tUartData.m_tx_len);
-		printf("发送的指令帧: ");
+			printf("Sent command frame: ");
 		for (int i = 0; i < tUartData.m_tx_len; i++)
 		{
 			printf("%02x ", tUartData.m_send_array[i]);
@@ -102,7 +102,7 @@ void *ThreadEntry_left(void *arg)
 		}
 if ((j == 1) && (sum == tUartData.m_rec_array[i - 1])) {
             // Print the raw response frame
-            printf("原始响应数据: ");
+	            printf("Raw response data: ");
             for (int k = 0; k < i; k++) {
                 printf("%02x ", tUartData.m_rec_array[k]); // Print as hexadecimal
             }
@@ -251,7 +251,7 @@ int set_opt(int fd, int nSpeed, int nBits, char nEvent, int nStop)
 		return -1;
 	}
 
-	printf("串口设置完成!\n\r");
+	printf("Serial port setup completed.\n\r");
 	return 0;
 }
 
@@ -275,7 +275,7 @@ int Read_Hand_Data(uint8_t ID, uint16_t adress, uint16_t len)
 	tUartData.m_tx_len = 9;
 	
             // Print the raw transmit frame
-    printf("构建的输入串口原始帧: ");
+    printf("Built raw serial input frame: ");
     for (i = 0; i < tUartData.m_tx_len; i++)
     {
         printf("%02x ", tUartData.m_send_array[i]); // Print as hexadecimal

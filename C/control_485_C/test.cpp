@@ -11,7 +11,7 @@ int main()
     char s;
     if ((fd_right = open("/dev/ttyUSB0", O_RDWR | O_NOCTTY)) < 0 || (fd_left = open("/dev/ttyUSB0", O_RDWR | O_NOCTTY)) < 0)
     {
-        printf("打开失败\n");
+        printf("Open failed\n");
     }
     else
     {

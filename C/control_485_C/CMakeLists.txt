@@ -27,4 +27,4 @@ add_executable(test test.cpp hand_api.c)
 # )  
 
 # Remind the user to update the serial port and hand ID
-message(STATUS "请在 hand_api.c 中修改 ttyUSB0 为实际串口USB名，以及对于手的ID。")
+message(STATUS "Please update ttyUSB0 in hand_api.c to the actual USB serial port name, and set the correct hand ID.")

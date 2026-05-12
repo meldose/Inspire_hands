@@ -27,13 +27,13 @@ def open_modbus(ip, port, timeout=10):
     
     while (time.time() - start_time) < timeout:
         if client.connect():
-            print(f"成功连接至 {ip}:{port}")
+            print(f"Connected successfully to {ip}:{port}")
             return client
         else:
-            print(f"连接失败：{ip}:{port}，正在重试...")
+            print(f"Connection failed: {ip}:{port}, retrying...")
             time.sleep(1)  # Wait 1 second before retrying
             
-    print(f"连接失败，超时：{ip}:{port}")
+    print(f"Connection failed, timed out: {ip}:{port}")
     return None
 
 def write_register(client, address, values):
@@ -50,22 +50,22 @@ def write6(client, reg_name, val):
             val_reg.append(val[i] & 0xFFFF)  # Keep the low 16 bits
         write_register(client, regdict[reg_name], val_reg)
     else:
-        print('函数调用错误')
+        print('Function call error')
 
 def read6(client, reg_name):
     if reg_name in ['angleSet', 'forceSet', 'speedSet', 'angleAct', 'forceAct']:
         val = read_register(client, regdict[reg_name], 6)
         if len(val) < 6:
-            print('没有读到数据')
+            print('No data was read')
             return
-        print('读到的值依次为：', end='')
+        print('Read values:', end='')
         for v in val:
             print(v, end=' ')
         print()
     elif reg_name in ['errCode', 'statusCode', 'temp']:
         val_act = read_register(client, regdict[reg_name], 3)
         if len(val_act) < 3:
-            print('没有读到数据')
+            print('No data was read')
             return
         results = []
         for i in range(len(val_act)):
@@ -73,7 +73,7 @@ def read6(client, reg_name):
             high_byte = (val_act[i] >> 8) & 0xFF
             results.append(low_byte)
             results.append(high_byte)
-        print('读到的值依次为：', end='')
+        print('Read values:', end='')
         for v in results:
             print(v, end=' ')
         print()
@@ -84,45 +84,45 @@ def control_device(ip):
         return
 
     # Run the command sequence for one device
-    print(f'{ip} - 设置灵巧手运动速度参数！')
+    print(f'{ip} - Setting dexterous hand motion speed parameters')
     write6(client, 'speedSet', [1000, 1000, 1000, 1000, 1000, 1000])
     time.sleep(2)
 
-    print(f'{ip} - 设置灵巧手抓握力度参数！')
+    print(f'{ip} - Setting dexterous hand grip force parameters')
     write6(client, 'forceSet', [500, 500, 500, 500, 500, 500])
     time.sleep(1)
 
-    print(f'{ip} - 设置灵巧手运动角度参数0！')
+    print(f'{ip} - Setting dexterous hand motion angle parameters to 0')
     write6(client, 'angleSet', [0, 0, 0, 0, 500, 500])
     time.sleep(3)
 
     read6(client, 'angleAct')
     time.sleep(1)
 
-    print(f'{ip} - 设置灵巧手运动角度参数1000！')
+    print(f'{ip} - Setting dexterous hand motion angle parameters to 1000')
     write6(client, 'angleSet', [1000, 1000, 1000, 1000, 1000, 1000])
     time.sleep(5)
 
     read6(client, 'angleAct')
     time.sleep(1)
 
-    print(f'{ip} - 故障信息：')
+    print(f'{ip} - Error information:')
     read6(client, 'errCode')
     time.sleep(1)
 
-    print(f'{ip} - 电缸温度：')
+    print(f'{ip} - Actuator temperature:')
     read6(client, 'temp')
     time.sleep(1)
 
-    print(f'{ip} - 设置灵巧手动作库序列：2！')
+    print(f'{ip} - Setting dexterous hand action library sequence: 2')
     write_register(client, regdict['actionSeq'], [2])
     time.sleep(1)
 
-    print(f'{ip} - 运行灵巧手当前序列动作！')
+    print(f'{ip} - Running the current dexterous hand sequence action')
     write_register(client, regdict['actionRun'], [1])
 
     client.close()
-    print(f'{ip} - 连接已关闭')
+    print(f'{ip} - Connection closed')
 
 if __name__ == '__main__':
     ip_addresses = ['192.168.11.210', '192.168.11.220']  # Add the IP addresses of all devices
@@ -135,11 +135,11 @@ if __name__ == '__main__':
         if client:
             clients.append(client)
         else:
-            print(f"无法连接到设备：{ip}")
+            print(f"Unable to connect to device: {ip}")
 
     # Run the control sequence only if every device connects successfully
     if len(clients) == len(ip_addresses):
-        print("所有设备都已成功连接，开始控制设备...")
+        print("All devices connected successfully, starting device control...")
         for ip, client in zip(ip_addresses, clients):
             thread = threading.Thread(target=control_device, args=(ip,))
             threads.append(thread)
@@ -149,7 +149,7 @@ if __name__ == '__main__':
         for thread in threads:
             thread.join()
 
-        print("所有设备控制已完成。")
+        print("All device control tasks completed.")
     else:
-        print("未能连接到所有设备，控制程序未执行。")
+        print("Failed to connect to all devices, control program was not executed.")
 

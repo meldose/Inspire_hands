@@ -28,7 +28,7 @@ public:
         serial.set_option(serial_port_base::character_size(8)); // Data bits
         serial.set_option(serial_port_base::parity(serial_port_base::parity::none)); // No parity
         serial.set_option(serial_port_base::stop_bits(serial_port_base::stop_bits::one)); // One stop bit
-        cout << "串口 " << port << " 已打开" << endl;
+        cout << "Serial port " << port << " opened" << endl;
     }
 
     void write(const vector<unsigned char>& data) {
@@ -59,7 +59,7 @@ int getAddressByName(const string& reg_name) {
 // Write-register helper
 void write_register(SerialPort& serial, int address_decimal, const string& id_value, const vector<int>& values_to_write) {
     if (values_to_write.size() > 6) {
-        cerr << "超过允许的值数量，最多只能写入6个值！" << endl;
+        cerr << "Too many values provided, at most 6 values can be written." << endl;
         return;
     }
 
@@ -90,7 +90,7 @@ void write_register(SerialPort& serial, int address_decimal, const string& id_va
     send_buffer.push_back(checksum & 0xFF);  // Append checksum
 
     // Print the outgoing frame
-    cout << "发送的写入数据: ";
+    cout << "Sent write data: ";
     for (auto byte : send_buffer) {
         cout << hex << setw(2) << setfill('0') << (int)byte << " ";
     }
@@ -102,9 +102,9 @@ void write_register(SerialPort& serial, int address_decimal, const string& id_va
     // Read and discard the write response
     try {
         vector<unsigned char> discard_buffer = serial.read(9); 
-        cout << "写操作后的响应数据已丢弃，字节数: " << discard_buffer.size() << endl;
+        cout << "Discarded response data after write, byte count: " << discard_buffer.size() << endl;
     } catch (const std::exception& e) {
-        cerr << "写操作后的响应数据读取失败: " << e.what() << endl;
+        cerr << "Failed to read response data after write: " << e.what() << endl;
     }
 }
 
@@ -131,7 +131,7 @@ void read_register(SerialPort& serial, int address_decimal, const string& id_val
 
     send_buffer.push_back(checksum & 0xFF);
 
-    cout << "发送的完整数据: ";
+    cout << "Sent full data: ";
     for (auto byte : send_buffer) {
         cout << hex << setw(2) << setfill('0') << (int)byte << " ";
     }
@@ -143,7 +143,7 @@ void read_register(SerialPort& serial, int address_decimal, const string& id_val
     vector<unsigned char> received_data = serial.read(length_to_read);
 
     // Print the raw response frame
-    cout << "接收到的原始响应数据: ";
+    cout << "Received raw response data: ";
     for (auto byte : received_data) {
         cout << hex << setw(2) << setfill('0') << (int)byte << " ";
     }
@@ -161,7 +161,7 @@ void read_register(SerialPort& serial, int address_decimal, const string& id_val
     }
 
     // Print parsed values
-    cout << "参数: ";
+    cout << "Values: ";
     for (int value : parsed_values) {
         cout << dec << value << " ";
     }

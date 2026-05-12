@@ -23,10 +23,10 @@ def init_serial(port='/dev/ttyUSB0', baudrate=115200):
     """Initialize the serial connection."""
     try:
         ser = serial.Serial(port, baudrate, timeout=1)
-        print(f"串口 {port} 已打开")
+        print(f"Serial port {port} opened")
         return ser
     except Exception as e:
-        print(f"打开串口失败: {e}")
+        print(f"Failed to open serial port: {e}")
         return None
 
 def convert_address_to_binary_write(address_dec, id_value):
@@ -62,7 +62,7 @@ def send_command(ser, reg_name, values, id_value):
         val_reg = [val & 0xFFFF for val in values]  
         write_register(ser, regdict[reg_name], val_reg, id_value)
     else:
-        print('函数调用错误，正确方式：str的值为\'angleSet\'/\'forceSet\'/\'speedSet\'，val为长度为6的list，值为0~1000，允许使用-1作为占位符')
+        print("Function call error. Expected: str = 'angleSet'/'forceSet'/'speedSet', val = list of length 6, values in 0-1000, and -1 may be used as a placeholder")
 
 def write_register(ser, address, values, id_value):
     """Build and send a write-register frame."""
@@ -73,14 +73,14 @@ def write_register(ser, address, values, id_value):
         # Encode the address using the write-frame format
         ext_id_bin = convert_address_to_binary_write(address, id_value)
         ext_id_hex = binary_to_hex(ext_id_bin)
-        print(f"计算的扩展标识符: {ext_id_hex}")
+        print(f"Computed extended identifier: {ext_id_hex}")
 
         ext_id_number = int(ext_id_hex, 16)
         ext_id_bytes = convert_number_to_bytes(ext_id_number)
 
-        print("提取的扩展标识符字节:")
+        print("Extracted extended identifier bytes:")
         for byte in ext_id_bytes:
-            print(f"字节: {byte:02X}")
+            print(f"Byte: {byte:02X}")
 
         send_buffer = bytearray()
         send_buffer += bytes([0xAA, 0xAA])
@@ -109,24 +109,24 @@ def write_register(ser, address, values, id_value):
         send_buffer += bytes([0x55, 0x55])
 
         ser.write(send_buffer)
-        print("发送指令:", send_buffer.hex())
+        print("Sent command:", send_buffer.hex())
         ser.reset_input_buffer()  # Clear the input buffer
         break  # Only send the first chunk once here
 
     # Send the remaining values in the second frame
     new_address = address + 8
-    print(f"新地址 (后半段): {new_address}")
+    print(f"New address (second half): {new_address}")
 
     ext_id_bin = convert_address_to_binary_write(new_address, id_value)
     ext_id_hex = binary_to_hex(ext_id_bin)
-    print(f"计算的扩展标识符 (后半段): {ext_id_hex}")
+    print(f"Computed extended identifier (second half): {ext_id_hex}")
 
     ext_id_number = int(ext_id_hex, 16)
     ext_id_bytes = convert_number_to_bytes(ext_id_number)
 
-    print("提取的扩展标识符字节 (后半段):")
+    print("Extracted extended identifier bytes (second half):")
     for byte in ext_id_bytes:
-        print(f"字节: {byte:02X}")
+        print(f"Byte: {byte:02X}")
 
     # Build the second frame with the shifted address bytes
     send_buffer = bytearray()
@@ -156,7 +156,7 @@ def write_register(ser, address, values, id_value):
     send_buffer += bytes([0x55, 0x55])
 
     ser.write(send_buffer)
-    print("发送指令 (后半段):", send_buffer.hex())
+    print("Sent command (second half):", send_buffer.hex())
 
 def read_register(ser, address, id_value):
     """Build and send a read-register frame."""
@@ -188,13 +188,13 @@ def read_register(ser, address, id_value):
     send_buffer += bytes([0x55, 0x55])
 
     ser.write(send_buffer)
-    print("发送读取指令:", send_buffer.hex())
+    print("Sent read command:", send_buffer.hex())
     ser.reset_input_buffer()  # Clear the input buffer
     
     # Wait for the device response
     time.sleep(0.1)  # Give the device time to respond
     response1 = ser.read(23)  # Read the expected response length
-    print("读取的原始内容:", response1.hex())  # Print the raw response in hex
+    print("Read raw content:", response1.hex())  # Print the raw response in hex
 
     # Parse the response based on the register being read
     if address == regdict['temp']:
@@ -210,7 +210,7 @@ def read_register(ser, address, id_value):
                 if value > 60000:
                     value = 0
                 values1.append(value)
-            print("读取数据（温度）:", tuple(values1))  # Print temperature data
+            print("Read data (temperature):", tuple(values1))  # Print temperature data
     else:
         # Parse the first response frame
         if len(response1) >= 1:
@@ -259,13 +259,13 @@ def read_register(ser, address, id_value):
         send_buffer += bytes([0x55, 0x55])
 
         ser.write(send_buffer)
-        print("发送读取指令:", send_buffer.hex())
+        print("Sent read command:", send_buffer.hex())
         ser.reset_input_buffer()  # Clear the input buffer
         
         # Wait for the device response
         time.sleep(0.1)  # Give the device time to respond
         response2 = ser.read(23)  # Read the expected response length
-        print("读取的原始内容:", response2.hex())  # Print the raw response in hex
+        print("Read raw content:", response2.hex())  # Print the raw response in hex
 
         # Parse the second response frame
         if len(response2) >= 1:
@@ -284,7 +284,7 @@ def read_register(ser, address, id_value):
 
         # Merge the final six values
         combined_values = values1[:4] + values2[:2]  # First four values from frame one plus last two from frame two
-        print("读取数据:", tuple(combined_values))
+        print("Read data:", tuple(combined_values))
 
 def write6(ser, reg_name, val, id_value):
     """Write six values through the CAN-style protocol."""
@@ -296,7 +296,7 @@ if __name__ == "__main__":
     if not ser:
         exit(1)
 
-    print('设置灵巧手运动角度参数0，-1为不设置该运动角度！')  
+    print('Setting dexterous hand motion angle parameters to 0, -1 means keep that angle unchanged')  
     # Write demo values
     write6(ser, 'speedSet', [1000, 1000, 1000, 1000, 1000, 1000], '01')
     time.sleep(1)

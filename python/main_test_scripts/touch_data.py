@@ -40,7 +40,7 @@ def read_register_range(client, start_addr, end_addr):
         response = client.read_holding_registers(address=addr, count=current_count)
 
         if isinstance(response, ExceptionResponse) or response.isError():
-            print(f"读取寄存器 {addr} 失败: {response}")
+            print(f"Failed to read register {addr}: {response}")
             register_values.extend([0] * current_count)
         else:
             register_values.extend(response.registers)
@@ -53,10 +53,10 @@ def format_finger_data(finger_name, data):
     """
     result = {}
 
-    if finger_name != "大拇指":
+    if finger_name != "Thumb":
         # Layout used by the four non-thumb fingers
         if len(data) < 185:
-            print(f"{finger_name} 数据长度不足，至少185个数据，实际：{len(data)}")
+            print(f"{finger_name} data length is insufficient, expected at least 185 values, actual: {len(data)}")
             return None
 
         idx = 0
@@ -74,7 +74,7 @@ def format_finger_data(finger_name, data):
     else:
         # Layout used by the thumb
         if len(data) < 210:
-            print(f"{finger_name} 数据长度不足，至少210个数据，实际：{len(data)}")
+            print(f"{finger_name} data length is insufficient, expected at least 210 values, actual: {len(data)}")
             return None
 
         idx = 0
@@ -109,7 +109,7 @@ def format_palm_data(data):
     """
     expected_len = 14 * 8
     if len(data) < expected_len:
-        print(f"掌心数据长度不足，至少{expected_len}个数据，实际：{len(data)}")
+        print(f"Palm data length is insufficient, expected at least {expected_len} values, actual: {len(data)}")
         return None
 
     # Build the original 14x8 matrix
@@ -123,35 +123,35 @@ def format_palm_data(data):
 
 def print_formatted_finger_data(finger_name, formatted_data):
     if formatted_data is None:
-        print(f"{finger_name} 数据格式化失败")
+        print(f"{finger_name} data formatting failed")
         return
 
-    print(f"--- {finger_name} 指端指端数据 (3x3) ---")
+    print(f"--- {finger_name} fingertip end data (3x3) ---")
     for row in formatted_data.get('tip_end', []):
         print(row)
 
-    print(f"--- {finger_name} 指尖触觉数据 (12x8) ---")
+    print(f"--- {finger_name} fingertip tactile data (12x8) ---")
     for row in formatted_data.get('tip_touch', []):
         print(row)
 
-    if finger_name == "大拇指":
+    if finger_name == "Thumb":
         if 'middle_touch' in formatted_data:
-            print(f"--- {finger_name} 指中触觉数据 (3x3) ---")
+            print(f"--- {finger_name} middle tactile data (3x3) ---")
             for row in formatted_data['middle_touch']:
                 print(row)
         else:
-            print(f"{finger_name} 指中触觉数据缺失")
+            print(f"{finger_name} middle tactile data is missing")
 
-    print(f"--- {finger_name} 指腹触觉数据 ({'12x8' if finger_name == '大拇指' else '10x8'}) ---")
+    print(f"--- {finger_name} finger pad tactile data ({'12x8' if finger_name == 'Thumb' else '10x8'}) ---")
     for row in formatted_data.get('finger_pad', []):
         print(row)
 
 def print_formatted_palm_data(palm_data):
     if palm_data is None:
-        print("掌心数据格式化失败")
+        print("Palm data formatting failed")
         return
 
-    print("--- 掌心数据 (8x14) ---")
+    print("--- Palm data (8x14) ---")
     for row in palm_data:
         print(row)
 
@@ -200,22 +200,22 @@ def read_multiple_registers():
             frequency = 1 / (end_time - start_time) if end_time > start_time else float('inf')
 
             # Format the raw register values
-            pinky_formatted = format_finger_data("小拇指", pinky_register_values)
-            ring_formatted = format_finger_data("无名指", ring_register_values)
-            middle_formatted = format_finger_data("中指", middle_register_values)
-            index_formatted = format_finger_data("食指", index_register_values)
-            thumb_formatted = format_finger_data("大拇指", thumb_register_values)
+            pinky_formatted = format_finger_data("Pinky", pinky_register_values)
+            ring_formatted = format_finger_data("Ring", ring_register_values)
+            middle_formatted = format_finger_data("Middle", middle_register_values)
+            index_formatted = format_finger_data("Index", index_register_values)
+            thumb_formatted = format_finger_data("Thumb", thumb_register_values)
             palm_formatted = format_palm_data(palm_register_values)
 
             # Print the formatted data
-            print_formatted_finger_data("小拇指", pinky_formatted)
-            print_formatted_finger_data("无名指", ring_formatted)
-            print_formatted_finger_data("中指", middle_formatted)
-            print_formatted_finger_data("食指", index_formatted)
-            print_formatted_finger_data("大拇指", thumb_formatted)
+            print_formatted_finger_data("Pinky", pinky_formatted)
+            print_formatted_finger_data("Ring", ring_formatted)
+            print_formatted_finger_data("Middle", middle_formatted)
+            print_formatted_finger_data("Index", index_formatted)
+            print_formatted_finger_data("Thumb", thumb_formatted)
             print_formatted_palm_data(palm_formatted)
 
-            print(f"读取频率：{frequency:.2f} Hz")
+            print(f"Read frequency: {frequency:.2f} Hz")
             print("\n" + "="*40 + "\n")
 
     finally:

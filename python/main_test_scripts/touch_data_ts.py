@@ -19,7 +19,7 @@ def read_register_range(client, start_addr, count):
     response = client.read_holding_registers(address=start_addr, count=count)
 
     if isinstance(response, ExceptionResponse) or response.isError():
-        print(f"读取寄存器 {start_addr} 失败: {response}")
+        print(f"Failed to read register {start_addr}: {response}")
         return None
     else:
         register_values = response.registers
@@ -79,12 +79,12 @@ def read_multiple_registers():
             frequency = 1 / (end_time - start_time)
 
             # Print the current values
-            print(f"小拇指法向力：{pinky_force[0]}, 切向力：{pinky_force[1]}")
-            print(f"无名指法向力：{ring_force[0]}, 切向力：{ring_force[1]}")
-            print(f"中指法向力：{middle_force[0]}, 切向力：{middle_force[1]}")
-            print(f"食指法向力：{index_force[0]}, 切向力：{index_force[1]}")
-            print(f"大拇指法向力：{thumb_force[0]}, 切向力：{thumb_force[1]}")
-            print(f"读取频率：{frequency:.2f} Hz")
+            print(f"Pinky normal force: {pinky_force[0]}, tangential force: {pinky_force[1]}")
+            print(f"Ring finger normal force: {ring_force[0]}, tangential force: {ring_force[1]}")
+            print(f"Middle finger normal force: {middle_force[0]}, tangential force: {middle_force[1]}")
+            print(f"Index finger normal force: {index_force[0]}, tangential force: {index_force[1]}")
+            print(f"Thumb normal force: {thumb_force[0]}, tangential force: {thumb_force[1]}")
+            print(f"Read frequency: {frequency:.2f} Hz")
 
             time.sleep(0.02)
 
