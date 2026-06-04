@@ -1,17 +1,16 @@
 #!/usr/bin/env python3
 
-# importing time and socket modules for handling timing and network communication
 from __future__ import annotations
 
 import argparse
-import socket
-import struct
 import time
 from collections.abc import Iterable, Sequence
 from contextlib import ExitStack
 from dataclasses import dataclass
 
-# Modbus register addresses for the Inspire hand
+import serial
+
+
 ANGLE_SET_REGISTER = 1486
 FORCE_SET_REGISTER = 1498
 SPEED_SET_REGISTER = 1522
@@ -19,20 +18,21 @@ CLEAR_ERROR_REGISTER = 1004
 
 
 @dataclass(frozen=True)
-class InspireHandConfig:
-    ip: str
-    port: int = 6000
-    unit_id: int = 1
+class InspireSerialConfig:
+    port: str
+    baudrate: int = 115200
+    hand_id: int = 1
+    timeout_s: float = 0.05
+    write_delay_s: float = 0.01
 
-# Configuration for the left and right Inspire hands. Update the IP addresses as needed.
 
-HAND_CONFIGS: dict[str, InspireHandConfig] = {
-    "right": InspireHandConfig(ip="192.168.124.210"),
-    "left": InspireHandConfig(ip="192.168.124.211"),
+HAND_CONFIGS: dict[str, InspireSerialConfig] = {
+    "right": InspireSerialConfig(port="/dev/ttyUSB0"),
+    "left": InspireSerialConfig(port="/dev/ttyUSB1"),
 }
 
-# Inspire RH56DFTP angle register order:
-# little, ring, middle, index, thumb bending, thumb rotation.
+
+# Match the existing Modbus sequence script so behavior stays familiar.
 HAND_OPEN_TARGET = [700, 700, 700, 700, 800, 0]
 HAND_CLOSE_TARGET = [0, 0, 0, 0, 1000, 600]
 
@@ -48,21 +48,29 @@ FINGER_TO_IDXS: dict[str, tuple[int, ...]] = {
     "thumb_rot": (5,),
 }
 
-# Default opening order for the fingers. Can be overridden with the --order argument.
 DEFAULT_OPEN_ORDER = ("thumb", "index", "middle", "ring", "little")
 
 
-# Modbus TCP client for communicating with the Inspire hand. Supports writing single and multiple registers.
-class ModbusTcp:
-    def __init__(self, host: str, port: int = 6000, unit_id: int = 1, timeout: float = 2.0):
-        self.host = host
-        self.port = int(port)
-        self.unit_id = int(unit_id)
-        self.timeout = float(timeout)
-        self.transaction_id = 1
-        self.sock: socket.socket | None = None
+class SerialHand:
+    def __init__(
+        self,
+        port: str,
+        *,
+        baudrate: int = 115200,
+        hand_id: int = 1,
+        timeout_s: float = 0.05,
+        write_delay_s: float = 0.01,
+        verbose: bool = False,
+    ) -> None:
+        self.port = port
+        self.baudrate = int(baudrate)
+        self.hand_id = int(hand_id)
+        self.timeout_s = float(timeout_s)
+        self.write_delay_s = float(write_delay_s)
+        self.verbose = bool(verbose)
+        self.ser: serial.Serial | None = None
 
-    def __enter__(self) -> "ModbusTcp":
+    def __enter__(self) -> "SerialHand":
         self.connect()
         return self
 
@@ -70,63 +78,52 @@ class ModbusTcp:
         self.close()
 
     def connect(self) -> None:
-        self.sock = socket.create_connection((self.host, self.port), self.timeout)
-        self.sock.settimeout(self.timeout)
+        self.ser = serial.Serial(
+            port=self.port,
+            baudrate=self.baudrate,
+            timeout=self.timeout_s,
+            write_timeout=self.timeout_s,
+        )
+        self.ser.reset_input_buffer()
+        self.ser.reset_output_buffer()
 
     def close(self) -> None:
-        if self.sock is not None:
-            self.sock.close()
-            self.sock = None
+        if self.ser is not None:
+            self.ser.close()
+            self.ser = None
 
     def write_single_register(self, address: int, value: int) -> None:
-        pdu = struct.pack(">BHH", 6, int(address), int(value) & 0xFFFF)
-        response = self._request(pdu)
-        if response != pdu:
-            raise RuntimeError("Unexpected Modbus write-single response")
+        value = int(value) & 0xFFFF
+        payload = [value & 0xFF, (value >> 8) & 0xFF]
+        self._write_register(address, payload)
 
     def write_registers(self, address: int, values: Iterable[int]) -> None:
-        register_values = [int(value) & 0xFFFF for value in values]
-        payload = struct.pack(">" + "H" * len(register_values), *register_values)
-        pdu = struct.pack(">BHHB", 16, int(address), len(register_values), len(payload)) + payload
-        response = self._request(pdu)
-        expected = struct.pack(">BHH", 16, int(address), len(register_values))
-        if response != expected:
-            raise RuntimeError("Unexpected Modbus write-multiple response")
+        payload: list[int] = []
+        for value in values:
+            register = int(value) & 0xFFFF
+            payload.append(register & 0xFF)
+            payload.append((register >> 8) & 0xFF)
+        self._write_register(address, payload)
 
-    def _request(self, pdu: bytes) -> bytes:
-        if self.sock is None:
-            raise RuntimeError("Modbus socket is not connected")
+    def _write_register(self, address: int, payload: Sequence[int]) -> None:
+        if self.ser is None:
+            raise RuntimeError("Serial port is not connected")
 
-        tid = self.transaction_id & 0xFFFF
-        self.transaction_id += 1
-        header = struct.pack(">HHHB", tid, 0, len(pdu) + 1, self.unit_id)
-        self.sock.sendall(header + pdu)
+        frame = [0xEB, 0x90, self.hand_id, len(payload) + 3, 0x12, address & 0xFF, (address >> 8) & 0xFF]
+        frame.extend(int(value) & 0xFF for value in payload)
+        checksum = sum(frame[2:]) & 0xFF
+        frame.append(checksum)
 
-        response_header = self._recv_exact(7)
-        response_tid, protocol, length, unit = struct.unpack(">HHHB", response_header)
-        if response_tid != tid or protocol != 0 or unit != self.unit_id:
-            raise RuntimeError("Unexpected Modbus response header")
+        if self.verbose:
+            print(f"{self.port}: tx {[hex(value) for value in frame]}")
 
-        response_pdu = self._recv_exact(length - 1)
-        function = response_pdu[0]
-        if function & 0x80:
-            code = response_pdu[1] if len(response_pdu) > 1 else None
-            raise RuntimeError(f"Modbus exception function=0x{function:02x} code={code}")
-        return response_pdu
+        self.ser.write(bytes(frame))
+        self.ser.flush()
+        time.sleep(self.write_delay_s)
 
-    def _recv_exact(self, count: int) -> bytes:
-        if self.sock is None:
-            raise RuntimeError("Modbus socket is not connected")
-
-        chunks: list[bytes] = []
-        remaining = int(count)
-        while remaining:
-            chunk = self.sock.recv(remaining)
-            if not chunk:
-                raise RuntimeError("Socket closed while reading Modbus response")
-            chunks.append(chunk)
-            remaining -= len(chunk)
-        return b"".join(chunks)
+        response = self.ser.read_all()
+        if self.verbose and response:
+            print(f"{self.port}: rx {response!r}")
 
 
 def clamp_register(value: float | int) -> int:
@@ -169,7 +166,7 @@ def interpolate(start: Sequence[int], stop: Sequence[int], alpha: float) -> list
 
 
 def send_target(
-    client: ModbusTcp | None,
+    client: SerialHand | None,
     target: Sequence[int],
     *,
     speed: int,
@@ -182,14 +179,14 @@ def send_target(
         return
 
     if client is None:
-        raise RuntimeError("Modbus client is required unless dry-run is enabled")
+        raise RuntimeError("Serial client is required unless dry-run is enabled")
     client.write_registers(SPEED_SET_REGISTER, [clamp_register(speed)] * 6)
     client.write_registers(FORCE_SET_REGISTER, [clamp_register(force)] * 6)
     client.write_registers(ANGLE_SET_REGISTER, values)
 
 
 def ramp_to_target(
-    client: ModbusTcp | None,
+    client: SerialHand | None,
     current: Sequence[int],
     target: Sequence[int],
     *,
@@ -221,9 +218,29 @@ def open_next_finger(current: Sequence[int], finger: str) -> list[int]:
     return target
 
 
+def build_hand_configs(args: argparse.Namespace) -> dict[str, InspireSerialConfig]:
+    return {
+        "right": InspireSerialConfig(
+            port=args.right_port,
+            baudrate=args.baudrate,
+            hand_id=args.right_id,
+            timeout_s=args.timeout_s,
+            write_delay_s=args.write_delay_s,
+        ),
+        "left": InspireSerialConfig(
+            port=args.left_port,
+            baudrate=args.baudrate,
+            hand_id=args.left_id,
+            timeout_s=args.timeout_s,
+            write_delay_s=args.write_delay_s,
+        ),
+    }
+
+
 def run_sequence(
     hand: str,
     *,
+    configs: dict[str, InspireSerialConfig],
     order: Sequence[str],
     open_duration_s: float,
     reset_duration_s: float,
@@ -235,16 +252,26 @@ def run_sequence(
     speed: int,
     force: int,
     dry_run: bool,
+    verbose_serial: bool,
 ) -> None:
     sides = normalize_hands(hand)
     cycle = 1
 
     with ExitStack() as stack:
-        clients: dict[str, ModbusTcp | None] = {}
+        clients: dict[str, SerialHand | None] = {}
         for side in sides:
-            config = HAND_CONFIGS[side]
+            config = configs[side]
             client = (
-                stack.enter_context(ModbusTcp(config.ip, config.port, config.unit_id))
+                stack.enter_context(
+                    SerialHand(
+                        config.port,
+                        baudrate=config.baudrate,
+                        hand_id=config.hand_id,
+                        timeout_s=config.timeout_s,
+                        write_delay_s=config.write_delay_s,
+                        verbose=verbose_serial,
+                    )
+                )
                 if not dry_run
                 else stack.enter_context(null_client())
             )
@@ -304,8 +331,8 @@ class null_client:
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         description=(
-            "Continuously close an Inspire hand, then slowly open each finger "
-            "one after another."
+            "Continuously close an Inspire hand over serial/TTY, then slowly open "
+            "each finger one after another."
         )
     )
     parser.add_argument("--hand", choices=("left", "right", "both"), default="right")
@@ -325,6 +352,14 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--rate-hz", type=float, default=20.0, help="Command update rate during slow motion.")
     parser.add_argument("--speed", type=int, default=200, help="Inspire speed register value.")
     parser.add_argument("--force", type=int, default=200, help="Inspire force register value.")
+    parser.add_argument("--right-port", default=HAND_CONFIGS["right"].port, help="TTY device for the right hand.")
+    parser.add_argument("--left-port", default=HAND_CONFIGS["left"].port, help="TTY device for the left hand.")
+    parser.add_argument("--baudrate", type=int, default=115200, help="Serial baudrate.")
+    parser.add_argument("--right-id", type=int, default=1, help="Hand ID for the right hand.")
+    parser.add_argument("--left-id", type=int, default=1, help="Hand ID for the left hand.")
+    parser.add_argument("--timeout-s", type=float, default=0.05, help="Serial read/write timeout.")
+    parser.add_argument("--write-delay-s", type=float, default=0.01, help="Delay after each serial frame.")
+    parser.add_argument("--verbose-serial", action="store_true", help="Print raw serial frames.")
     parser.add_argument("--dry-run", action="store_true", help="Print targets without sending commands.")
     return parser.parse_args()
 
@@ -333,6 +368,7 @@ def main() -> None:
     args = parse_args()
     run_sequence(
         "both" if args.both_hands else args.hand,
+        configs=build_hand_configs(args),
         order=args.order,
         open_duration_s=args.open_duration_s,
         reset_duration_s=args.reset_duration_s,
@@ -344,6 +380,7 @@ def main() -> None:
         speed=args.speed,
         force=args.force,
         dry_run=args.dry_run,
+        verbose_serial=args.verbose_serial,
     )
 
 
